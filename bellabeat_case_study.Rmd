@@ -1,0 +1,466 @@
+---
+title: "Sleeping Problems?"
+author: "Sebastian Roncancio"
+date: '2022-03-04'
+output: 
+  html_notebook: 
+    toc: yes
+    highlight: espresso
+    theme: yeti
+  html_document: 
+    highlight: espresso
+    theme: yeti
+    df_print: tibble
+---
+
+
+We both know why you are here: to see my first case study. Yes, the one on Bellabeat. Yes, the one to finish the **Google Data Analytics Professional Certificate**.
+
+
+## Bussiness Task: non-Bellabeat Users
+
+
+The **main task** is to identify which insights are beneficial to our **marketing team** at Bellabeat, a smart device company focused on women. I will use sleeping and daily activity data to find patterns to reach new customers and improve our sales for Leaf. I chose Leaf because Bellabeat's users can wear it on their wrist during the day, and on their sleepwear at night.
+
+
+## What data did I use?
+
+
+
+To improve Bellabeat's marketing strategies, I analyzed non-Bellabeat user's data. 
+
+The data set **FitBit Fitness Tracker Data** (CCO: Public Domain) contains 30 participants who consented to the submission of personal tracker data. The description of the data set indicates data from two months but in reality it's only from 31 days.
+
+
+## Cleaning and manipulating the data
+
+
+### Loading the data
+
+
+I decided to work with RStudio in order to clean, organize, manipulate, and analyze the data in one single place. All visualizations will also be created using R.
+
+
+First, I installed and loaded the packages I need for my analysis.
+
+
+```{r libraries, echo=TRUE, message=FALSE, warning=FALSE}
+library("dplyr")
+library("tidyverse")
+library("ggplot2")
+library("psych")
+library("ggthemes")
+```
+
+
+I created a data frame for the **sleep data**.
+
+
+```{r sleep_day, echo=TRUE, message=FALSE, warning=FALSE}
+sleep_data <- read.csv("/cloud/project/Bellabeat_Case_Study/DataFrame/sleepDay_merged.csv")
+```
+
+
+I also created a frame for the **daily activity** data.
+
+
+```{r dayly_activity, echo=TRUE, message=FALSE, warning=FALSE}
+daily_activity <- read.csv("/cloud/project/Bellabeat_Case_Study/DataFrame/dailyActivity_merged.csv")
+```
+
+
+
+### Exploring the **daily_activity** data frame.
+
+
+Let's do some exploration! 
+
+
+```{r da_colnames, echo=TRUE, message=FALSE, warning=FALSE}
+colnames(daily_activity)
+glimpse(daily_activity)
+```
+
+
+I identified that this data frame contains 16 columns and 940 rows. 
+
+
+Let's see how that looks on a tibble!
+
+
+```{r da_head, echo=TRUE, message=FALSE, warning=FALSE}
+head(daily_activity)
+```
+
+```{r da_n_distinct, echo=TRUE, message=FALSE, warning=FALSE}
+n_distinct(daily_activity$Id)
+```
+
+
+The data set [description](<https://www.kaggle.com/arashnic/fitbit>) indicates that there are 30 participants, not 33. But it also says that "variation between output represents use of different types of FitBit trackers and individual tracking behaviors / preferences." There is no way to verify if the 3 extra Ids are duplicated users or new ones.
+
+
+However, I can can verify that there are not duplicated records:
+
+
+```{r da_duplicated, echo=TRUE, message=FALSE, warning=FALSE}
+duplicated(daily_activity) %>% 
+  sum(duplicated(daily_activity))
+```
+
+
+**I am working with 33 participants.**
+
+
+Okay, let's change the string character in the **ActivityDate** to a date character.
+
+
+```{r da_date, echo=TRUE, message=FALSE, warning=FALSE}
+daily_activity$Date <- as.Date(daily_activity$ActivityDate, format="%m/%d/%Y")
+head(daily_activity)
+```
+
+There aren't any values in **LoggedActivyDistance** and **SedentaryActiveDistance** but before I eliminate those columns, I will check.
+
+
+```{r da_check, echo=TRUE, message=FALSE, warning=FALSE}
+da_check <- daily_activity %>% 
+  select(everything()) %>% 
+  filter(LoggedActivitiesDistance >0.00 & SedentaryActiveDistance >0.00)
+glimpse(da_check)
+```
+
+
+There are only 3 rows that contain data from those two columns at the same time. 
+
+
+Nevertheless, I didn't have use in my analysis for the data in those columns, so I did some filtering. 
+
+
+Also, I will only use the **TotalDistance** and disregard the columns "VeryActiveDistance", "ModeratelyActiveDistance", and "LightActiveDistance". As well, I created a column that reflects the sum of all the active minutes into a **TotalActiveHours**.
+
+
+Let's do that!
+
+
+```{r da_cleaned, echo=TRUE, message=FALSE, warning=FALSE}
+da_cleaned <- daily_activity %>% 
+  mutate(TotalActiveHours = select(., 11:13) %>% rowSums(na.rm = TRUE)/60) %>%
+  mutate(select(.,14)/60) %>% 
+  rename(SedentaryHours = SedentaryMinutes) %>% 
+  select(-2,-5:-13) 
+head(da_cleaned)
+```
+
+
+### Exploring the **sleep_data** data frame.
+
+
+Let's see if I have some cleaning to do!
+
+
+```{r sleep_colnames, echo=TRUE, message=FALSE, warning=FALSE}
+colnames(sleep_data)
+glimpse(sleep_data)
+```
+
+I identified that this data frame contains 5 columns and 413 rows.
+
+
+Here is a tibble of it:
+
+
+```{r sleep_head, echo=TRUE, message=FALSE, warning=FALSE}
+head(sleep_data)
+```
+
+
+Are there also 33 participants in this data frame?
+
+
+```{r sleep_n_distinct, echo=TRUE, message=FALSE, warning=FALSE}
+n_distinct(sleep_data$Id)
+```
+
+
+
+**27% of participants chose to take or turn off their FitBit.**
+
+
+What about duplicated rows?
+
+
+```{r sleep_duplicated, echo=TRUE, message=FALSE, warning=FALSE}
+duplicated(sleep_data) %>% 
+  sum(duplicated(sleep_data))
+```
+
+
+There are 3 duplicated records. I need to find them and determine if I must delete them or not.
+
+
+```{r sleep_duplicated_head, echo=TRUE, message=FALSE, warning=FALSE}
+sd_check <- sleep_data[duplicated(sleep_data)|duplicated(sleep_data, fromLast=TRUE),]
+head(sd_check)
+```
+
+
+There are exactly 3 duplicate entries, and I did not use them for my analysis.
+
+
+```{r sleep_eliminate_duplicates, echo=TRUE, message=FALSE, warning=FALSE}
+sd_no_duplicates <- distinct(sleep_data)
+glimpse(sd_no_duplicates)
+```
+
+
+For this analysis I didn't need the time frame that is attached with the **SleepDay** column. So, I eliminated it. 
+
+
+Also, I changed the date data from a string character to a date character in a new column named **SleepDate**.
+
+
+```{r sleep_date, echo=TRUE, message=FALSE, warning=FALSE}
+sd_no_duplicates$SleepDate <- as.Date(sd_no_duplicates$SleepDay, format="%m/%d/%Y") 
+```
+
+
+I changed the minutes to hours and renamed the heading of the columns corresponding to that data. Also, I did some filtering to work only with the data I need.
+
+
+```{r sleep_day_cleaned, echo=TRUE, message=FALSE, warning=FALSE}
+sd_cleaned <- sd_no_duplicates %>%
+  mutate(select(.,4,5)/60) %>% 
+  select(-2,-3) %>% 
+  rename(Date = SleepDate, HoursAsleep = TotalMinutesAsleep, HoursInBed = TotalTimeInBed)
+head(sd_cleaned)
+```
+
+
+### Merging the data frames.
+
+
+I joined both data frames in order to better understand the data and find patterns between the sleeping habits of the participants and their daily activity.
+
+
+Because I know there are 33 participants in the **daily_activity** and 24 in the **sleep_data**, I only used participant's Id that have data in both data frames (inner join).
+
+
+```{r data_merge, echo=TRUE, message=FALSE, warning=FALSE}
+data_combined <- merge(x=da_cleaned, y=sd_cleaned, by=c("Id","Date"))
+```
+
+
+## Analyzing the data.
+
+
+First, let's see any potential patterns by summarizing the daily activity data.
+
+
+```{r da_sum, echo=TRUE, message=FALSE, warning=FALSE}
+da_cleaned %>%  
+  select(TotalSteps,
+         TotalDistance,
+         SedentaryHours,
+         TotalActiveHours,
+         Calories) %>%
+  summary()
+```
+
+- The average of sedentary hours is 16.5.
+
+- The maximum of sedentary hours is 24.
+
+- The average of active hours is 3.8.
+
+- The maximum of active hours is 9.2. 
+
+
+Now, let's see the summarized sleep data.
+
+
+```{r sd_sum, echo=TRUE, message=FALSE, warning=FALSE}
+sd_cleaned %>% 
+  select(HoursAsleep,
+         HoursInBed) %>% 
+  summary()
+```
+
+
+
+- The minimum of hours asleep is 0.9.
+
+- The average of hours asleep is 6.9.
+
+- The maximum of hours asleep is 13.2.
+
+- The average of hours in bed is 7.6.
+
+- The maximum of hours in bed is 16.
+
+
+In order to find patterns between daily activity and sleeping habits of the users, I **cleaned the data** by checking for **duplicates** and **null** values. I **aggregated** the values of activity minutes to see a total of active hours and **transformed** the minutes into hours. Then, I **organized** it and **filter** it, and finally I **merged** both data frames into one.
+
+
+After that, I summarized the values and found the following:
+
+
+- The average sleeping time and the average time in bed have a difference of 42 minutes, which can show a relationship between the two factors.
+
+- 25% of participants sleep 6 hours, and 25% of participants spend more than 12 sedentary hours. 
+
+- 75% of users spend more than 20 sedentary hours.
+
+- 75% of users spend 5 hours of activity time.
+
+
+I found that there is a correlation between the daily activity and sleeping patterns of the participants. This will be evident in the following visualizations of the data.
+
+
+
+## Visualizing my results.
+
+
+I didn't use the rows that contain records of less than 10 minutes of activity and less than 100 steps taken because they add visual contamination, and don't add real value to the analysis.
+
+
+```{r sed_act_min, echo=TRUE, message=FALSE, warning=FALSE}
+ggplot(data = data_combined %>% 
+         filter(SedentaryHours >=0.16)) +
+  geom_jitter(aes(HoursAsleep, SedentaryHours, col = HoursAsleep)) +
+  labs(title = "Sleeping Problems?",
+       x = "Hours Asleep",
+       y = "Sedentary Hours",
+       col = "Hours Asleep") +
+  theme_minimal()
+```
+
+
+- As the graphic shows there is a relationship between sleeping and sedentary hours. 
+
+
+```{r sp_trouble, echo=TRUE, message=FALSE, warning=FALSE}
+sleep_trouble <- data_combined %>% 
+  filter(SedentaryHours>=12 & HoursAsleep<=5)
+n_distinct(sleep_trouble$Id)
+```
+
+
+- I can determine that, at least for one day, **66% of participants** slept 5 hours or less and had over 12 hours of sedentary activity.
+
+- Data shows that 10% of non-Bellabeat users has sleeping problems. Another 27% of users don't use the smart device tracker when they go to bed.
+
+- In Bellabeat we can reach to this specific population highlighting the benefits of **Leaf**, which can be used on sleepwear during the night and as jewelry during the day.
+
+**Potential 37% of increase sales.**
+
+
+```{r sp_target, echo=TRUE, message=FALSE, warning=FALSE}
+ggplot(data = data_combined %>% 
+         filter(SedentaryHours >=0.16)) +
+  geom_jitter(aes(HoursAsleep, SedentaryHours, col = HoursAsleep)) +
+  labs(title = "Target Audience",
+       x = "Hours Asleep",
+       y = "Sedentary Hours",
+       col = "Hours Asleep") +
+  annotate("rect", xmin=c(0.5), xmax=c(5), ymin=c(12) , ymax=c(22), alpha=0.2,color="dark red", fill="dark red") +
+  theme_minimal()
+```
+
+
+
+Let's take a look to the relationship between time spent in bed and sedentary hours:
+
+
+```{r sed_bed_min, echo=TRUE, message=FALSE, warning=FALSE}
+ggplot(data = data_combined %>% 
+         filter(SedentaryHours >=0.16)) +
+  geom_jitter(aes(HoursInBed,SedentaryHours, col = HoursInBed)) +
+  labs(title = "Take time to relax in bed",
+       x = "Hours in Bed",
+       y = "Sedentary Hours",
+       col = "Hours in Bed") +
+    annotate("rect", xmin=c(0.5), xmax=c(5), ymin=c(12) , ymax=c(22), alpha=0.2,color="dark red", fill="dark red") +
+  theme_minimal()
+```
+
+
+```{r relax_trouble, echo=TRUE, message=FALSE, warning=FALSE}
+relax_trouble <- data_combined %>% 
+  filter(SedentaryHours>=12 & HoursInBed<=4)
+n_distinct(relax_trouble$Id)
+```
+
+
+- At least one day, 45% of participants spent more than 12 hours of sedentary activity and less than 4 hours relaxing in bed. 
+
+- This percentage of participants might be spending a lot time behind screens or in office-related jobs, but little time sleeping or relaxing in bed.
+
+
+Now, let's see the relationship between hours asleep and hours spent in bed!
+
+
+```{r sleep_bed, echo=TRUE, message=FALSE, warning=FALSE}
+ggplot(sd_cleaned) +
+  geom_jitter(aes(HoursAsleep,HoursInBed, col = HoursAsleep)) +
+  labs(title = "Sleep vs relaxing in bed",
+       x = "Hours Asleep",
+       y = "Hours in Bed",
+       col = "Hours Asleep") +
+  theme_minimal()
+```
+
+
+- The correlation is clear: the more time users spend in bed, the more minutes they sleep.
+
+- As mentioned earlier, there is an average of 42 minutes difference between the time that participants sleep and the amount of time spent relaxing in bed. This could mean that spending time relaxing in bed is beneficial for improving sleeping habits.
+
+- **A potential target audience would be users that have sleeping problems.** 
+
+- Bellabeat could target that population and help improve their sleeping habits by visualizing their current ones.
+
+- **Leaf** is the perfect product for it, because users can remove the tracker from their wrists, and clip it on their sleepwear. 
+
+- According to data from **Google Data**, searches for yoga and meditation apps grew [65%](<https://www.thinkwithgoogle.com/consumer-insights/consumer-trends/search-statistics-for-yoga-meditation-apps/>) by 2017.
+
+
+Besides sleep patterns, another strong relationship is the one between steps taken and active hours:
+
+
+```{r steps_min, echo=TRUE, message=FALSE, warning=FALSE}
+ggplot(data = da_cleaned %>%
+         filter(TotalActiveHours >= 0.16 & TotalSteps >= 100)) +
+  geom_point(aes(TotalActiveHours,TotalSteps, colour = TotalActiveHours)) +
+  labs(title = "Do you like to walk?",
+       x = "Active Hours",
+       y = "Steps",
+       colour = "Hours") +
+    theme_minimal()
+```
+
+
+- The more minutes the participant is active, the more steps are taken.
+
+- Walking, jogging and running could be activities that participants engage the most.
+
+- Runners, joggers, hikers, and walkers are a good potential target audience.
+
+- According to [**Google Data**](<https://www.thinkwithgoogle.com/consumer-insights/consumer-trends/fitness-app-athletic-clothing-searches/>), searches for fitness-related apps for athletic clothing and shoes have grown over **135% by 2017**. 
+
+
+
+## Results and Conclussion
+
+
+- I suggest a complementary study that focus on the relationship between sleeping problems and sedentary activity.
+
+- **Leaf** -from Bellabeat- is a product that can help users improve their sleeping habits. It's designed to be used during the day on the wrist, and to use at night as a clip-on for sleepwear, which makes it comfortable. This feature targets the **27% of users that are removing the fitness tracker at night**.
+
+- Marketing non-Bellabeat users that show interest on walking, hiking, jogging, and running.
+
+- Market non-Bellabeat users that spend over 12 hours of sedentary activity, for example office-related jobs.
+
+- Market non-Bellabeat users that show sleeping problems, for example less than 5 hours of sleep per night. 
+
+- Digital marketing, with strong social media and phone strategies are recommended because [smart watches and smart devices are among the top purchases made by phone](<https://www.thinkwithgoogle.com/future-of-marketing/emerging-technology/types-of-tech-devices-purchased-on-mobile/>).
+
